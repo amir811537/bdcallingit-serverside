@@ -37,6 +37,7 @@ async function run() {
 
     const productCollection = client.db("productDB").collection("products");
     const brandCollection = client.db("productDB").collection("brand");
+    const reviewCollection = client.db("productDB").collection("allRewiews");
 
     // user collection
     const usercollection = client.db("productDB").collection("user");
@@ -157,6 +158,16 @@ async function run() {
       const result = await usercollection.insertOne(user);
       res.send(result);
     });
+
+// // cart view 
+//     app.get('/userCart',async(req,res)=>{
+//       const email=req.query.email;
+//       const query={
+//         email:email
+//       }
+//       const result =await usercollection.find().toArray();
+//       res.send(result)
+//     })
 //  user get with email and products
     app.get("/userCart/:email", async (req, res) => {
       const email=req.params.email;
@@ -175,7 +186,39 @@ app.delete('/userCart/:id',async(req,res)=>{
   res.send(result);
 })
 
+// user review api
+app.post("/allRewiews", async (req, res) => {
+  const { reviewID, userEmail } = req.body.allReviewData;
+  try {
+    const existingReview = await reviewCollection.findOne({
+      "reviewData.reviewID": reviewID,
+      "reviewData.userEmail": userEmail,
+    });
 
+    if (existingReview) {
+      return res
+        .status(400)
+        .send({ message: "You already added your review" });
+    }
+
+    const result = await reviewCollection.insertOne({
+      reviewData: req.body.allReviewData,
+    });
+
+    res.send(result);
+  } catch (error) {
+    console.error("Error inserting review:", error);
+    res.status(500).send({ message: "Internal server error" });
+  }
+});
+
+
+    // get all reviews
+    app.get("/allRewiews", async (req, res) => {
+      const cursor = reviewCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });

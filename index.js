@@ -93,7 +93,7 @@ async function run() {
     
     app.get("/products/type/:type", async (req, res) => {
       const type = req.params.type;
-      console.log(`Received request for type: ${type}`);
+      // console.log(`Received request for type: ${type}`);
     
       try {
         const query = { type: new RegExp(`^${type}$`, 'i') };
@@ -101,7 +101,7 @@ async function run() {
         const result = await cursor.toArray();
     
         if (result.length === 0) {
-          console.log("No products found for type:", type);
+          // console.log("No products found for type:", type);
           return res.status(404).send({ message: "No products found." });
         }
     

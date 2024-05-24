@@ -212,6 +212,31 @@ app.post("/allRewiews", async (req, res) => {
   }
 });
 
+app.post('/updateReviewReaction', async (req, res) => {
+  const { reviewId, reaction } = req.body; // reaction can be 'like' or 'dislike'
+  try {
+    // Define the update operation based on the reaction
+    const update = reaction === 'like' ? 
+      { $inc: { 'reviewData.likes': 1 } } : 
+      { $inc: { 'reviewData.dislikes': 1 } };
+
+    // Update the review document in the database
+    const result = await reviewCollection.updateOne(
+      { _id: new ObjectId(reviewId) },
+      update
+    );
+
+    // Check if the review was found and updated
+    if (result.modifiedCount > 0) {
+      res.send({ success: true });
+    } else {
+      res.status(400).send({ success: false, message: 'Review not found' });
+    }
+  } catch (error) {
+    console.error('Error updating review reaction:', error);
+    res.status(500).send({ message: 'Internal server error' });
+  }
+});
 
     // get all reviews
     app.get("/allRewiews", async (req, res) => {

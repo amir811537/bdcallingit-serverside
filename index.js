@@ -38,6 +38,7 @@ async function run() {
     const productCollection = client.db("productDB").collection("products");
     const brandCollection = client.db("productDB").collection("brand");
     const reviewCollection = client.db("productDB").collection("allRewiews");
+    const profileCollection = client.db("productDB").collection("profileInfo");
 
     // user collection
     const usercollection = client.db("productDB").collection("user");
@@ -57,12 +58,11 @@ async function run() {
     //   res.send(result);
     // });
 
-
     app.get("/products", async (req, res) => {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 12;
       const skip = (page - 1) * limit;
-    
+
       // Construct filter based on query parameters
       const filter = {};
       if (req.query.type) {
@@ -71,7 +71,7 @@ async function run() {
       if (req.query.name) {
         filter.name = { $regex: req.query.name, $options: "i" };
       }
-    
+
       try {
         const cursor = productCollection.find(filter).skip(skip).limit(limit);
         const result = await cursor.toArray();
@@ -81,8 +81,6 @@ async function run() {
         res.status(500).send("Internal Server Error");
       }
     });
-    
-
 
     //getting brand
     app.get("/brand", async (req, res) => {
@@ -90,28 +88,27 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     });
-    
+
     app.get("/products/type/:type", async (req, res) => {
       const type = req.params.type;
       // console.log(`Received request for type: ${type}`);
-    
+
       try {
-        const query = { type: new RegExp(`^${type}$`, 'i') };
+        const query = { type: new RegExp(`^${type}$`, "i") };
         const cursor = productCollection.find(query);
         const result = await cursor.toArray();
-    
+
         if (result.length === 0) {
           // console.log("No products found for type:", type);
           return res.status(404).send({ message: "No products found." });
         }
-    
+
         res.send(result);
       } catch (error) {
         console.error("Error fetching products:", error);
         res.status(500).send({ message: "Internal Server Error" });
       }
     });
-    
 
     // get singel product by id
     app.get("/productsbyid/:id", async (req, res) => {
@@ -159,90 +156,141 @@ async function run() {
       res.send(result);
     });
 
-// // cart view 
-//     app.get('/userCart',async(req,res)=>{
-//       const email=req.query.email;
-//       const query={
-//         email:email
-//       }
-//       const result =await usercollection.find().toArray();
-//       res.send(result)
-//     })
-//  user get with email and products
+    // // cart view
+    //     app.get('/userCart',async(req,res)=>{
+    //       const email=req.query.email;
+    //       const query={
+    //         email:email
+    //       }
+    //       const result =await usercollection.find().toArray();
+    //       res.send(result)
+    //     })
+    //  user get with email and products
     app.get("/userCart/:email", async (req, res) => {
-      const email=req.params.email;
+      const email = req.params.email;
       const query = { email: email };
       const cursor = usercollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
     });
 
-
-//  user delete 
-app.delete('/userCart/:id',async(req,res)=>{
-  const id=req.params.id;
-  const query={_id: new ObjectId(id)}
-  const result= await usercollection.deleteOne(query);
-  res.send(result);
-})
-
-// user review api
-app.post("/allRewiews", async (req, res) => {
-  const { reviewID, userEmail } = req.body.allReviewData;
-  try {
-    const existingReview = await reviewCollection.findOne({
-      "reviewData.reviewID": reviewID,
-      "reviewData.userEmail": userEmail,
+    //  user delete
+    app.delete("/userCart/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await usercollection.deleteOne(query);
+      res.send(result);
     });
 
-    if (existingReview) {
-      return res
-        .status(400)
-        .send({ message: "You already added your review" });
-    }
+    // user review api
+    app.post("/allRewiews", async (req, res) => {
+      const { reviewID, userEmail } = req.body.allReviewData;
+      try {
+        const existingReview = await reviewCollection.findOne({
+          "reviewData.reviewID": reviewID,
+          "reviewData.userEmail": userEmail,
+        });
 
-    const result = await reviewCollection.insertOne({
-      reviewData: req.body.allReviewData,
+        if (existingReview) {
+          return res
+            .status(400)
+            .send({ message: "You already added your review" });
+        }
+
+        const result = await reviewCollection.insertOne({
+          reviewData: req.body.allReviewData,
+        });
+
+        res.send(result);
+      } catch (error) {
+        console.error("Error inserting review:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
     });
 
-    res.send(result);
-  } catch (error) {
-    console.error("Error inserting review:", error);
-    res.status(500).send({ message: "Internal server error" });
-  }
-});
+    app.post("/updateReviewReaction", async (req, res) => {
+      const { reviewId, reaction } = req.body; // reaction can be 'like' or 'dislike'
+      try {
+        // Define the update operation based on the reaction
+        const update =
+          reaction === "like"
+            ? { $inc: { "reviewData.likes": 1 } }
+            : { $inc: { "reviewData.dislikes": 1 } };
 
-app.post('/updateReviewReaction', async (req, res) => {
-  const { reviewId, reaction } = req.body; // reaction can be 'like' or 'dislike'
-  try {
-    // Define the update operation based on the reaction
-    const update = reaction === 'like' ? 
-      { $inc: { 'reviewData.likes': 1 } } : 
-      { $inc: { 'reviewData.dislikes': 1 } };
+        // Update the review document in the database
+        const result = await reviewCollection.updateOne(
+          { _id: new ObjectId(reviewId) },
+          update
+        );
 
-    // Update the review document in the database
-    const result = await reviewCollection.updateOne(
-      { _id: new ObjectId(reviewId) },
-      update
-    );
-
-    // Check if the review was found and updated
-    if (result.modifiedCount > 0) {
-      res.send({ success: true });
-    } else {
-      res.status(400).send({ success: false, message: 'Review not found' });
-    }
-  } catch (error) {
-    console.error('Error updating review reaction:', error);
-    res.status(500).send({ message: 'Internal server error' });
-  }
-});
+        // Check if the review was found and updated
+        if (result.modifiedCount > 0) {
+          res.send({ success: true });
+        } else {
+          res.status(400).send({ success: false, message: "Review not found" });
+        }
+      } catch (error) {
+        console.error("Error updating review reaction:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
 
     // get all reviews
     app.get("/allRewiews", async (req, res) => {
       const cursor = reviewCollection.find();
       const result = await cursor.toArray();
       res.send(result);
+    });
+
+    // make admin apis
+    app.patch("/profileInfo/admin/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const updatedDocs = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await profileCollection.updateOne(query, updatedDocs);
+      res.send(result);
+    });
+
+
+    //user profile related api post
+    app.post("/profileInfo", async (req, res) => {
+      const profileInfo = req.body;
+      const result = await profileCollection.insertOne(profileInfo);
+      res.send(result);
+    });
+
+
+    //getting all profile info
+    app.get("/profileInfo", async (req, res) => {
+      const cursor = profileCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // delete profile
+    app.delete("/profileInfo/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await profileCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // check by email isAdmin
+    app.get("/profileInfo/admin/:email", async (req, res) => {
+      const clientEmail = req.params.email;
+      // console.log(email)
+      const query = { email: clientEmail };
+      const profile = await profileCollection.findOne(query);
+      let admin;
+      if (profile) {
+        admin = profile.role === "admin";
+      }
+      console.log(admin);
+      res.send({ admin });
     });
 
     // Send a ping to confirm a successful connection
